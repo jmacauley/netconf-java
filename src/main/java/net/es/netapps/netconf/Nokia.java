@@ -1,9 +1,6 @@
-package net.juniper.netconf;
+package net.es.netapps.netconf;
 
 import java.io.IOException;
-import java.text.Format;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import javax.xml.xpath.XPath;
@@ -12,6 +9,9 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 
 import lombok.Data;
+import net.juniper.netconf.Device;
+import net.juniper.netconf.NetconfException;
+import net.juniper.netconf.XML;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;

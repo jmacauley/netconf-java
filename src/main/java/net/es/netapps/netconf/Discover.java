@@ -1,7 +1,8 @@
-package net.juniper.netconf;
+package net.es.netapps.netconf;
 
 import java.io.IOException;
 import javax.xml.parsers.ParserConfigurationException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.cli.*;

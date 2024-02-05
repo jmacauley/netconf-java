@@ -67,7 +67,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>net.juniper.netconf.Discover</mainClass>
+                    <mainClass>net.es.netapps.netconf.Discover</mainClass>
                 </configuration>
             </plugin>
         </plugins>

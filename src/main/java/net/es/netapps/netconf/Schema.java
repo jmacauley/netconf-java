@@ -1,4 +1,4 @@
-package net.juniper.netconf;
+package net.es.netapps.netconf;
 
 import lombok.Builder;
 import lombok.Data;
