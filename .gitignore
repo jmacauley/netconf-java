@@ -1,0 +1,12 @@
+/target/
+/var/
+.classpath
+.project
+.settings/
+.idea
+*.iml
+*.swp
+.java-version
+*/git.properties
+/nbproject/
+.DS_Store
