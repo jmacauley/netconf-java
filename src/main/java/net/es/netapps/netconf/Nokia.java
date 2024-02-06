@@ -1,30 +1,14 @@
 package net.es.netapps.netconf;
 
-import java.io.IOException;
-import java.util.List;
-
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
-
-import lombok.Data;
-import net.juniper.netconf.Device;
 import net.juniper.netconf.NetconfException;
-import net.juniper.netconf.XML;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
-@Data
-public class Nokia {
+import java.util.ArrayList;
+import java.util.List;
+
+public class Nokia extends Discoverable {
     private static final Logger logger = LoggerFactory.getLogger(Nokia.class);
-    private final String hostname;
-    private final String username;
-    private final String password;
-    private final long timeout;
 
     // Count the number of errors we have encountered during discovery.
     private int errorCount = 0;
@@ -38,11 +22,7 @@ public class Nokia {
      * @param timeout
      */
     public Nokia(String hostname, String username, String password, long timeout) {
-        logger.info("[Nokia] starting...");
-        this.hostname = hostname;
-        this.username = username;
-        this.password = password;
-        this.timeout = timeout;
+        super(hostname, username, password, timeout);
     }
 
     // We discover based off of known schema versions.  We are not parsing the NETCONF
@@ -60,91 +40,74 @@ public class Nokia {
     /**
      * Perform the act of discovery returning the discovered data.
      */
-    public void discover() {
-        Device device;
+    public List<Document> discover() {
+        List<Document> results = new ArrayList<>();
+
         try {
-            device = Device.builder()
-                .hostName(hostname)
-                .userName(username)
-                .password(password)
-                .strictHostKeyChecking(false)
-                .commandTimeout(5 * 60 * 1000) // 5 minutes to account for large transponder responses.
-                .build();
-            device.connect();
+            // Connect to the Nokia device.
+            this.connect();
+
+            // Discovery capabilities from the device.
+            List<String> capabilities = this.getCapabilities();
+            //capabilities.forEach(logger::info);
+
+            // Verify the Nokia is running the correct OS version for discovery.
+            String version = getOsVersion(capabilities);
+            logger.info("[Nokia] os version to {}.", version);
+
+            if (version.contains(OS_VERSION_21) || version.contains(OS_VERSION_22)) {
+                results.addAll(discoverOsVersion2x(capabilities));
+            } else {
+                logger.error("[Nokia] {} is running incompatible OS version, expected {}",
+                    getHostname(), OS_VERSION_21);
+                errorCount++;
+
+                // Do best effort to discover this device.
+                results.addAll(discoverOsVersion2x(capabilities));
+            }
+            this.disconnect();
         } catch (NetconfException ex) {
-            logger.error("[Nokia] {} failed to connect", hostname, ex);
+            logger.error("[Nokia] {} encountered an error", getHostname(), ex);
             errorCount++;
-            return;
         }
 
-        logger.info("[Nokia] connected to {}.", hostname);
-
-        // Discovery capabilities from the device.
-        List<String> capabilities = device.getNetconfSession().getServerHello().getCapabilities();
-        //capabilities.forEach(logger::info);
-
-        // Verify the Nokia is running the correct OS version for discovery.
-        String version = getOsVersion(capabilities);
-        logger.info("[Nokia] os version to {}.", version);
-
-        if (version.contains(OS_VERSION_21) || version.contains(OS_VERSION_22)) {
-            discoverOsVersion2x(device, capabilities);
-        } else {
-            logger.error("[Nokia] {} is running incompatible OS version, expected {}", hostname, OS_VERSION_21);
-            errorCount++;
-
-            // Do best effort to discover this device.
-            discoverOsVersion2x(device, capabilities);
-        }
-
-        // Discover the Nokia <config /> YANG tree.
-        device.close();
-        logger.info("[Discover] {} discovery complete, errorCount = {}.", hostname, errorCount);
+        logger.info("[Discover] {} discovery complete, errorCount = {}.", getHostname(), errorCount);
+        return results;
     }
 
-    private void discoverOsVersion2x(Device device, List<String> capabilities) {
+    private List<Document> discoverOsVersion2x(List<String> capabilities) {
+        List<Document> results = new ArrayList<>();
+
         // Verify the Nokia is running the correct <config /> YANG schema version for discovery.
         if (!capabilities.contains(CONF_VERSION_2019_12_03)) {
             logger.error("[Nokia] {} is running incompatible config schema version, expected {}",
-                hostname, CONF_VERSION_2019_12_03);
+                getHostname(), CONF_VERSION_2019_12_03);
             errorCount++;
         }
 
         // Verify the Nokia is running the correct <state /> YANG schema version for discovery.
         if (!capabilities.contains(STATE_VERSION_2019_12_03)) {
             logger.error("[Nokia] {} is running incompatible state schema version, expected {}",
-                hostname, STATE_VERSION_2019_12_03);
+                getHostname(), STATE_VERSION_2019_12_03);
             errorCount++;
         }
 
         // Discover the Nokia <state /> YANG tree.  This is too large for a single <get /> RPC operation,
         // so we iterate over the individual elements.
         for (Schema schema : STATE_SCHEMA_2019_12_03) {
-            XML result;
             try {
-                result = device.getRunningConfigAndState(Nokia.getStateSchemaFilter(schema));
-            } catch (IOException | SAXException e) {
-                throw new RuntimeException(e);
-            }
-
-            if (device.hasError()) {
+                results.add(Document.builder()
+                    .element(schema.getElement())
+                    .namespace(schema.getNamespace())
+                    .document(getRunningConfigAndState(schema.getElement(), Nokia.getStateSchemaFilter(schema)))
+                    .build());
+            } catch (NetconfException ex) {
+                logger.error("[Nokia] {} failed to retrieve state schema for {}",
+                    getHostname(), schema.getElement(), ex);
                 errorCount++;
-                device.getNetconfSession().getLastRpcReplyObject().getErrors().forEach(e -> {
-                    logger.error("[Nokia] encountered error \"{}\", {} = \"{}\"",
-                        e.getErrorMessage(), e.getErrorInfo().getType(), e.getErrorInfo().getValue());
-                });
-            } else {
-                logger.debug("[Nokia] parsing document...");
-                try {
-                    String state = getState(schema, result.getOwnerDocument());
-                    logger.debug("Element {}\n{}", schema.getElement(), state);
-                } catch (XPathExpressionException ex) {
-                    errorCount++;
-                    logger.error("[Nokia] {} encountered error parsing element {}",
-                        hostname, schema.getElement(), ex);
-                }
             }
         }
+        return results;
     }
 
     private String getOsVersion(List<String> capabilities) {
@@ -152,17 +115,6 @@ public class Nokia {
             .filter(s -> s.contains(OS_VERSION))
             .findFirst()
             .orElse(null);
-    }
-
-    private static String getState(Schema schema, Document doc) throws XPathExpressionException {
-        XPath xPath = XPathFactory.newInstance().newXPath();
-        NodeList nodes = (NodeList) xPath.evaluate("/rpc-reply/data/state", doc, XPathConstants.NODESET);
-        if (nodes == null) {
-            logger.info("[Discover] empty results for {}", schema.getElement());
-            return null;
-        }
-
-        return XML.getNodeString(nodes.item(0), 4, true);
     }
 
     public static String getStateSchemaFilter(Schema schema) {

@@ -4,6 +4,8 @@ import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+
 public class Discover {
     private static final String DEVICE = "device";
     private static final String USERNAME = "username";
@@ -54,6 +56,9 @@ public class Discover {
 
         // Create a Nokia device.
         Nokia device = new Nokia(deviceName, username, password, 60*60*1000);
-        device.discover();
+        List<Document> documents = device.discover();
+        documents.forEach(d -> {
+            logger.debug("Namespace: {}, Element: {},\n{}", d.getNamespace(), d.getElement(), d.getDocument());
+        });
     }
 }
