@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Nokia specific refinement for the Discoverable class.
+ */
 public class Nokia extends Discoverable {
     private static final Logger logger = LoggerFactory.getLogger(Nokia.class);
 
@@ -38,7 +41,7 @@ public class Nokia extends Discoverable {
     private static final String STATE_VERSION_2019_12_03 = "urn:nokia.com:sros:ns:yang:sr:state?module=nokia-state&revision=2019-12-03";
 
     /**
-     * Perform the act of discovery returning the discovered data.
+     * Perform the act of discovery returning the discovered documents.
      */
     public List<Document> discover() {
         List<Document> results = new ArrayList<>();
@@ -75,6 +78,14 @@ public class Nokia extends Discoverable {
         return results;
     }
 
+    /**
+     * We have seen some minor differences between SROS versions 20, 21, and 22
+     * in the structure of the root elements.  We will need to account for these
+     * differences as we move forward with different element lists.
+     *
+     * @param capabilities
+     * @return
+     */
     private List<Document> discoverOsVersion2x(List<String> capabilities) {
         List<Document> results = new ArrayList<>();
 
@@ -110,6 +121,14 @@ public class Nokia extends Discoverable {
         return results;
     }
 
+    /**
+     * We should be looking into the CPM module's <software-code-version/> attribute for
+     * the full versioning information, but we can cheat and get the major version this
+     * way.
+     *
+     * @param capabilities
+     * @return
+     */
     private String getOsVersion(List<String> capabilities) {
         return capabilities.stream()
             .filter(s -> s.contains(OS_VERSION))
@@ -117,13 +136,27 @@ public class Nokia extends Discoverable {
             .orElse(null);
     }
 
+    /**
+     * This formats the filter needed for a configuration and state <get/> NETCONF
+     * operation.
+     *
+     * @param schema
+     * @return
+     */
     public static String getStateSchemaFilter(Schema schema) {
         return String.format(FILTER, String.format(STATE, schema.getElement()));
     }
 
+    // NETCONF RPC message template for a filter.
     private static final String FILTER = "<filter type=\"subtree\">%s</filter>";
+
+    // Configuration element for the Nokia configuration retrieval.
     private static final String CONFIGURATION = "<configure xmlns=\"urn:nokia.com:sros:ns:yang:sr:conf\">%s</configure>";
+
+    // State element for the Nokia configuration and state retrieval.
     private static final String STATE = "<state xmlns=\"urn:nokia.com:sros:ns:yang:sr:state\">%s</state>";
+
+    // List of Nokia state schema we need to discover.
     private static final List<Schema> STATE_SCHEMA_2019_12_03 = List.of(
         Schema.builder().element("<aaa />").namespace("urn:nokia.com:sros:ns:yang:sr:state:aaa").build(),
         Schema.builder().element("<application-assurance />").namespace("urn:nokia.com:sros:ns:yang:sr:state:application-assurance").build(),
