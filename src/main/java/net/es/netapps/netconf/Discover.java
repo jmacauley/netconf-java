@@ -4,12 +4,18 @@ import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Discover {
+    private static final String TYPE = "type";
     private static final String DEVICE = "device";
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
+    private static final String NOKIA = "nokia";
+    private static final String G30 = "g30";
+    private static final String G40 = "g40";
+    private static final String WAVESERVER = "waveserver";
 
     private static final Logger logger = LoggerFactory.getLogger(Discover.class);
 
@@ -21,6 +27,11 @@ public class Discover {
 
         // Create Options object to hold our command line options.
         Options options = new Options();
+
+        // Need to know the device type which we are connecting.
+        Option typeOption = new Option(TYPE, true, "Type of netconf device.");
+        typeOption.setRequired(true);
+        options.addOption(typeOption);
 
         // Need to know the device to which we are connecting.
         Option deviceOption = new Option(DEVICE, true, "Name of the netconf device.");
@@ -50,13 +61,25 @@ public class Discover {
         }
 
         // Get the command line arguments provided.
+        String deviceType = cmd.getOptionValue(TYPE, NOKIA);
         String deviceName = cmd.getOptionValue(DEVICE, "localhost");
         String username = cmd.getOptionValue(USERNAME, "admin");
         String password = cmd.getOptionValue(PASSWORD, "admin");
 
-        // Create a Nokia device.
-        Nokia device = new Nokia(deviceName, username, password, 60*60*1000);
-        List<Document> documents = device.discover();
+        List<Document> documents = new ArrayList<>();
+        if (NOKIA.equalsIgnoreCase(deviceType)) {
+            // Discover a Nokia device.
+            Nokia device = new Nokia(deviceName, username, password, 60 * 60 * 1000);
+            documents.addAll(device.discover());
+        } else if (WAVESERVER.equalsIgnoreCase(deviceType)) {
+            // Discover a Ciena Waveserver Transponder.
+
+        } else if (G30.equalsIgnoreCase(deviceType)) {
+            // Discover an Infinera G30 Transponder.
+        } else if (G40.equalsIgnoreCase(deviceType)) {
+            // Discover an Infinera G40 Transponder.
+        }
+
         documents.forEach(d -> {
             logger.debug("Namespace: {}, Element: {},\n{}", d.getNamespace(), d.getElement(), d.getDocument());
         });
