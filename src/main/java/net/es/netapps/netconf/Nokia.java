@@ -1,5 +1,6 @@
 package net.es.netapps.netconf;
 
+import com.google.common.base.Strings;
 import net.juniper.netconf.NetconfException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,17 +57,22 @@ public class Nokia extends Discoverable {
 
             // Verify the Nokia is running the correct OS version for discovery.
             String version = getOsVersion(capabilities);
-            logger.info("[Nokia] os version to {}.", version);
-
-            if (version.contains(OS_VERSION_21) || version.contains(OS_VERSION_22)) {
-                results.addAll(discoverOsVersion2x(capabilities));
+            if (Strings.isNullOrEmpty(version)) {
+                // We cannot determine the version of Nokia device.
+                logger.error("[Nokia] {} unknown OS version", getHostname());
             } else {
-                logger.error("[Nokia] {} is running incompatible OS version, expected {}",
-                    getHostname(), OS_VERSION_21);
-                errorCount++;
+                logger.info("[Nokia] os version to {}.", version);
 
-                // Do best effort to discover this device.
-                results.addAll(discoverOsVersion2x(capabilities));
+                if (version.contains(OS_VERSION_21) || version.contains(OS_VERSION_22)) {
+                    results.addAll(discoverOsVersion2x(capabilities));
+                } else {
+                    logger.error("[Nokia] {} is running incompatible OS version, expected {}",
+                        getHostname(), OS_VERSION_21);
+                    errorCount++;
+
+                    // Do best effort to discover this device.
+                    results.addAll(discoverOsVersion2x(capabilities));
+                }
             }
             this.disconnect();
         } catch (NetconfException ex) {
